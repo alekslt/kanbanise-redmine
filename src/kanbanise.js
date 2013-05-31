@@ -51,8 +51,12 @@ Kanbanise.prototype.applyTemplateTicket = function(data) {
 /**
  * @param {Array} data The data to stick into the template
  */ 
-Kanbanise.prototype.applyTemplateCol = function(title, id, cards) {
-    return jQuery(this.templateCol.replace('${title}', title).replace('${id}', id).replace('${cards}', cards));
+Kanbanise.prototype.applyTemplateCol = function(title, id, cards, columnsize) {
+    if ( columnsize == 'normal') {
+        return jQuery(this.templateCol.replace('${title}', title).replace('${id}', id).replace('${cards}', cards));
+    } else {
+        return jQuery(this.templateCol.replace('${title}', title).replace('${id}', id).replace('${cards}', cards));
+    }
 };
 
 Kanbanise.prototype.init = function() {
@@ -65,8 +69,11 @@ Kanbanise.prototype.init = function() {
     var API_KEY = null;
     // note: redmineRoot will not work if it's installed anywhere other than /, so
     // foo.com/redmine will not work
-    var redmineRoot = window.location.protocol + "//" + window.location.host + "/";
+    var pathArray = window.location.pathname.split( '/' );
+    var subUri = pathArray[1];
+    var redmineRoot = window.location.protocol + "//" + window.location.host + "/" +  subUri + "/";
 
+    Kanbanise.log("Kanbanise-Chiliproject URI: " + redmineRoot);
     if($('body.action-index') == null || $('body.action-index').length === 0) {
         alert("This page doesn't look like a Redmine issues list! Please find some issues");
         return;
@@ -111,9 +118,13 @@ Kanbanise.prototype.init = function() {
                 switch(newStatus.toLowerCase()) {
                     case "backlog":
                         newStatusId = 1; break;
+                    case "todo":
+                        newStatusId = 7; break;
                     case "in progress":
                         newStatusId = 2; break;
-                    case "resolved/with qa":
+                    case "integration":
+                        newStatusId = 8; break;
+                    case "resolved":
                         newStatusId = 3; break;
                     case "done":
                         newStatusId = 5; break;
@@ -130,7 +141,7 @@ Kanbanise.prototype.init = function() {
                 showMessage("Saving changes...");
                 jQuery.ajax(redmineRoot + 'issues/' + issueId + '.json', {
                     headers: {
-                        'X-Redmine-API-Key': API_KEY,
+                        'X-ChiliProject-API-Key': API_KEY,
                         'Content-Type': 'application/json'
                     },
                     processData: false,
@@ -173,7 +184,9 @@ Kanbanise.prototype.init = function() {
     function getIssues() {
         var issues = {
             'backlog': [],
+            'todo': [],
             'inProgress': [],
+            'integration': [],
             'resolved': [],
             'done': []
         };
@@ -186,12 +199,20 @@ Kanbanise.prototype.init = function() {
                 case 'Closed':
                     category = 'done';
                     break;
+                case 'Todo':
+                    category = 'todo';
+                    break;
                 case 'In Progress':
                     category = 'inProgress';
                     break;
                 case 'Resolved':
                 case 'Ready for QA':
                     category = 'resolved';
+                    break;
+                case 'Integration':
+                    category = 'integration';
+                    break;
+                case '':
                     break;
             }
 
@@ -202,10 +223,10 @@ Kanbanise.prototype.init = function() {
             var family = '';
             var severity = '';
 
-            if( jQuery(value).children('.story_points').length > 0) {
-                storyPoints = jQuery(value).children('.story_points')[0].textContent;
+            if( jQuery(value).children('.estimated_hours').length > 0) {
+                storyPoints = jQuery(value).children('.estimated_hours')[0].textContent;
                 if(storyPoints && storyPoints.length > 0) {
-                    storyPoints = storyPoints + " story points";
+                    storyPoints = storyPoints + " hours";
                 }
             }
 
@@ -270,14 +291,18 @@ Kanbanise.prototype.init = function() {
         var div = $('div#kanban');
 
         var col1Content = self.applyTemplateTicket(issues['backlog']);
-        var col2Content = self.applyTemplateTicket(issues['inProgress']);
-        var col3Content = self.applyTemplateTicket(issues['resolved']);
-        var col4Content = self.applyTemplateTicket(issues['done']);
+        var col2Content = self.applyTemplateTicket(issues['todo']);
+        var col3Content = self.applyTemplateTicket(issues['inProgress']);
+        var col4Content = self.applyTemplateTicket(issues['integration']);
+        var col5Content = self.applyTemplateTicket(issues['resolved']);
+        //var col6Content = self.applyTemplateTicket(issues['done']);
 
         $(div).append(self.applyTemplateCol('Backlog', 'col1', col1Content));
-        $(div).append(self.applyTemplateCol('In progress', 'col2', col2Content));
-        $(div).append(self.applyTemplateCol('Resolved/with QA', 'col3', col3Content));
-        $(div).append(self.applyTemplateCol('Done', 'col4', col4Content));
+        $(div).append(self.applyTemplateCol('Todo', 'col2', col2Content));
+        $(div).append(self.applyTemplateCol('In progress', 'col3', col3Content));
+        $(div).append(self.applyTemplateCol('Integration', 'col4', col4Content));
+        $(div).append(self.applyTemplateCol('Resolved', 'col5', col5Content));
+        //$(div).append(self.applyTemplateCol('Done', 'col6', col6Content));
         $(div).append($('<div class="credits">Kanbanise ' 
                         + VERSION
                         + ' - brought to you by <a href="http://www.boxuk.com/">Box UK</a>'
@@ -312,14 +337,14 @@ Kanbanise.prototype.init = function() {
         + ".ticket .icon {float: right; height: 10px; opacity: 0.5;}"
 
         + ".ticket.nature-task .icon {background: url(http://twitter.github.com/bootstrap/assets/img/glyphicons-halflings.png) no-repeat; background-position: -380px -145px;}\n"
-        + ".ticket.nature-features .icon {background: url(http://twitter.github.com/bootstrap/assets/img/glyphicons-halflings.png) no-repeat; background-position: -165px 0px;}\n"
-        + ".ticket.nature-defects .icon {background: url(http://twitter.github.com/bootstrap/assets/img/glyphicons-halflings.png) no-repeat; background-position: -356px -145px;}\n"
-        + ".ticket.nature-product-ideas .icon {background: url(http://twitter.github.com/bootstrap/assets/img/glyphicons-halflings.png); background-position: -20px -145px;}\n"
+        + ".ticket.nature-feature .icon {background: url(http://twitter.github.com/bootstrap/assets/img/glyphicons-halflings.png) no-repeat; background-position: -165px 0px;}\n"
+        + ".ticket.nature-bug .icon {background: url(http://twitter.github.com/bootstrap/assets/img/glyphicons-halflings.png) no-repeat; background-position: -356px -145px;}\n"
+        + ".ticket.nature-activity .icon {background: url(http://twitter.github.com/bootstrap/assets/img/glyphicons-halflings.png); background-position: -48px -120px;}\n"
         + ".ticket.nature-feedback .icon {background: url(http://twitter.github.com/bootstrap/assets/img/glyphicons-halflings.png); background-position: -91px -120px;}\n"
         + ".ticket.children {width: 92%; margin-left: 2.8%;}\n"
-        + ".nature-features {border-left: 12px solid #a0d3d8;}\n"
-        + ".nature-defects {border-left: 12px solid #dfa878;}\n"
-        + ".nature-product-ideas {border-left: 12px solid #d9df78;}\n"
+        + ".nature-feature {border-left: 12px solid #a0d3d8;}\n"
+        + ".nature-bug {border-left: 12px solid #dfa878;}\n"
+        + ".nature-activity {border-left: 12px solid #d9df78;}\n"
         + ".nature-feedback {border-left: 12px solid #dfa4dc;}\n"
         + ".severity-blocker {}"
         + ".severity-critical {}"
@@ -329,7 +354,8 @@ Kanbanise.prototype.init = function() {
         + ".card h3{ display: block; margin-bottom: 0.2em; overflow: hidden;}\n"
         + ".column { border:1px solid rgba(255, 255, 255, 0.1);margin:10px;padding:10px 20px;background: #084563; box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3)}\n"
         + ".column h1 { color: #fff;margin-bottom:4px;display:block; }\n"
-        + ".columnWrapper { float:left;width: 25%; }\n"
+        + ".columnWrapper { float:left;width: 20%; }\n"
+        + ".smallcolumnWrapper { float:left;width: 5.0%; }\n"
         + ".assigned-to {display: block; font-size: 11px; text-transform: uppercase;}\n"
         + ".credits { clear:both;color:#fff;font-size:0.7em;margin-left:20px;margin-bottom: 20px;}\n"
         + ".credits a { color: #fff; font-weight: bold}\n"
