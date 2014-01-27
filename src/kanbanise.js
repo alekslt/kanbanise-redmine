@@ -5,9 +5,10 @@ function Kanbanise() {}
 Kanbanise.prototype.templateTicket = '<li id="issue-${id}" class="card ticket ${nature_class} ${severity} ${family}">\n'
                + '  <a class="icon" title="${nature_human}"/>\n'
                + '  <span class="story-points">${storyPoints}</span>\n'
-               + '  <h3><a href="/issues/${id}">${subject}</a></h3>\n'
+               + '  <h4><a href="${redmineroot}issues/${id}">${subject}</a></h4>\n'
+               + '  <span class="issue-id">#${id}</span>\n'
                + '  <span class="assigned-to">${assignedTo}</span>\n'
-               + '</li>\n';
+               + '</li style="clear: both;">\n';
 
 Kanbanise.prototype.templateCol = '<div class="list columnWrapper">\n'
                + '  <div id="${id}" class="column">\n'
@@ -36,6 +37,7 @@ Kanbanise.prototype.applyTemplateTicket = function(data) {
         // The ${placeholders} need the space and concatenation otherwise the bookmarklet
         // creator collapses them
         tmp += this.templateTicket.replace(/\$\{id\}/gi, data[i].id)
+                 .replace('${redmineroot}', this._getRedmineRoot() )
                  .replace('${subject}', data[i].subject)
                  .replace('${storyPoints}', data[i].storyPoints)
                  .replace('${assignedTo}', data[i].assignedTo)
@@ -53,9 +55,9 @@ Kanbanise.prototype.applyTemplateTicket = function(data) {
  */ 
 Kanbanise.prototype.applyTemplateCol = function(title, id, cards, columnsize) {
     if ( columnsize == 'normal') {
-        return jQuery(this.templateCol.replace('${title}', title).replace('${id}', id).replace('${cards}', cards));
+        return jQuery(this.templateCol.replace('${redmineroot}', this._getRedmineRoot()).replace('${title}', title).replace('${id}', id).replace('${cards}', cards));
     } else {
-        return jQuery(this.templateCol.replace('${title}', title).replace('${id}', id).replace('${cards}', cards));
+        return jQuery(this.templateCol.replace('${redmineroot}', this._getRedmineRoot()).replace('${title}', title).replace('${id}', id).replace('${cards}', cards));
     }
 };
 
@@ -79,6 +81,8 @@ Kanbanise.prototype.init = function() {
         return;
     }
 
+    this._getRedmineRoot = function() { return redmineRoot; }
+    
     function showMessage(msg) {
         if(msgWin === null) {
             $('#msgWin').remove();
@@ -95,7 +99,7 @@ Kanbanise.prototype.init = function() {
      */
     function resizeColumns() {
         var maxH = 0;
-        for(var i = 1; i <= 4; i++) {
+        for(var i = 1; i <= 5; i++) {
             $('#col' + i).height('auto');
             if($('#col' + i).height() > maxH) {
                 maxH = $('#col' + i).height();
@@ -196,7 +200,8 @@ Kanbanise.prototype.init = function() {
             var category = 'backlog';
 
             switch(jQuery(value).children('.status')[0].innerHTML) {
-                case 'Closed':
+                case 'Rejected':
+		case 'Closed':
                     category = 'done';
                     break;
                 case 'Todo':
@@ -290,6 +295,26 @@ Kanbanise.prototype.init = function() {
     function drawBoard(issues) {
         var div = $('div#kanban');
 
+        var today = new Date();
+        var todayMonth = today.getMonth() + 1; var todayDate = today.getDate();
+        var todayYear = today.getFullYear(); 
+        var hours = today.getHours();
+        var minutes = today.getMinutes();
+
+        if ((todayMonth+1) < 10) {
+            todayMonth = "0"+todayMonth;
+        }
+        if (todayDate < 10) {
+            todayDate = "0"+todayDate;
+        }
+
+
+        if (minutes < 10) { minutes = "0" + minutes; }
+
+        var dateTimeFormated = todayYear + "." + todayMonth + "." + todayDate + " " + hours + ":" + minutes;
+
+        $(div).append('<h3>Kanban-board on ' + dateTimeFormated);
+
         var col1Content = self.applyTemplateTicket(issues['backlog']);
         var col2Content = self.applyTemplateTicket(issues['todo']);
         var col3Content = self.applyTemplateTicket(issues['inProgress']);
@@ -329,6 +354,7 @@ Kanbanise.prototype.init = function() {
     function addStyling() {
         $("<style type='text/css'> .ui-state-hover{ background: blue !important; }\n"
         + "#kanban { z-index:1000;position:absolute;left:0;top:0;width:100%;min-height:100%;background:#164B69; }\n"
+        + "#kanban h3 { color: #fff;margin-bottom:4px;display:block; }\n"
         + ".story-points { float:right;font-size:11px;}\n"
         + ".card, .column { border-radius: 4px; box-shadow: 0 0 8px rgba(0, 0, 0, 0.6), inset 0px 0px 6px rgba(64, 116, 188, 0.4); margin: 0 0 7px 0; }\n"
         + ".card { background: #fefefe; padding: 5px;}\n"
@@ -351,12 +377,13 @@ Kanbanise.prototype.init = function() {
         + ".severity-major {}"
         + ".severity-moderate {}"
 
-        + ".card h3{ display: block; margin-bottom: 0.2em; overflow: hidden;}\n"
-        + ".column { border:1px solid rgba(255, 255, 255, 0.1);margin:10px;padding:10px 20px;background: #084563; box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3)}\n"
+        + ".card h3{ display: block; margin-bottom: 0.1em; overflow: hidden;}\n"
+        + ".column { border:1px solid rgba(255, 255, 255, 0.1);margin:5px;padding:5px 10px;background: #084563; box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3)}\n"
         + ".column h1 { color: #fff;margin-bottom:4px;display:block; }\n"
-        + ".columnWrapper { float:left;width: 20%; }\n"
-        + ".smallcolumnWrapper { float:left;width: 5.0%; }\n"
-        + ".assigned-to {display: block; font-size: 11px; text-transform: uppercase;}\n"
+        + ".columnWrapper { float:left;width: 20%;}\n"
+        + ".smallcolumnWrapper { float:left;width: 2.5%; }\n"
+        + ".issue-id {float:right;font-size:10px;}\n"
+        + ".assigned-to {display: inline; font-size: 10px; text-transform: uppercase;}\n"
         + ".credits { clear:both;color:#fff;font-size:0.7em;margin-left:20px;margin-bottom: 20px;}\n"
         + ".credits a { color: #fff; font-weight: bold}\n"
         + "div#msgWin {position:fixed;right:0px;top:0px;z-index:30000;background:black;border:white 1px solid;padding: 3px; color: #fff}\n"
@@ -390,7 +417,7 @@ Kanbanise.prototype.init = function() {
         Kanbanise.log("Loading jQuery UI...");
         var done = false;
         var script = document.createElement("script");
-        script.src = "//ajax.googleapis.com/ajax/libs/jqueryui/1.8.23/jquery-ui.min.js";
+        script.src = "http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.23/jquery-ui.min.js";
         script.onload = script.onreadystatechange = function() {
             if(!done && (!this.readyState || this.readyState === "loaded"
                 || this.readyState == "complete"))
@@ -407,13 +434,13 @@ Kanbanise.prototype.init = function() {
         Kanbanise.log("Loading jQuery...");
         var done = false;
         var script = document.createElement("script");
-        script.src = "//ajax.googleapis.com/ajax/libs/jquery/" + MIN_JQUERY_VERSION + "/jquery.min.js";
+        script.src = "http://ajax.googleapis.com/ajax/libs/jquery/" + MIN_JQUERY_VERSION + "/jquery.min.js";
         script.onload = script.onreadystatechange = function() {
             if(!done && (!this.readyState || this.readyState === "loaded"
                 || this.readyState == "complete"))
             {
                 Kanbanise.log("loaded jQuery");
-                $.noConflict();
+                jQuery.noConflict();
                 done = true;
                 loadJQueryUI();
             }
